@@ -14,7 +14,18 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: 2.7.2
-    - run: bin/rails test
+    - uses: actions/cache@v2
+      with:
+        path: vendor/bundle
+        key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-gems-
+    - name: Install dependencies
+      run: bundle check || (bundle config path vendor/bundle && bundle install --without development)
+    - name: test
+      env:
+        RAILS_ENV: test
+      run: bin/rails test
   build_image:
     needs: [test]
     runs-on: ubuntu-latest
