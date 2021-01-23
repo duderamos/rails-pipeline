@@ -1,17 +1,21 @@
-FROM ruby:2.7.2 AS builder
+FROM ruby:2.7.2-alpine
 
-RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - && \
-      echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list && \
-      apt-get update -qq && \
-      apt-get install -y nodejs postgresql-client yarn
+RUN apk add --no-cache --update build-base \
+                                linux-headers \
+                                postgresql-dev \
+                                sqlite-dev \
+                                nodejs \
+                                yarn \
+                                tzdata
 
 WORKDIR /myapp
 COPY Gemfile /myapp/Gemfile
 COPY Gemfile.lock /myapp/Gemfile.lock
 RUN bundle config set deployment 'true' && \
-      bundle config set without 'test development' && \
-      bundle config --global jobs 4 && \
-      bundle install
+    bundle config set without 'test development' && \
+    bundle config set path vendor/bundle && \
+    bundle config --global jobs 4 && \
+    bundle install
 
 COPY package.json /myapp/
 COPY yarn.lock /myapp/
@@ -21,20 +25,12 @@ RUN bin/yarn install
 
 COPY . /myapp
 
-ENV SECRET_KEY_BASE="a" \
-    RAILS_ENV="production"
+RUN SECRET_KEY_BASE="A" \
+    RAILS_ENV="production" \
+    bin/rails assets:precompile && rm -rf tmp/cache/assets/
 
-RUN bin/rails assets:precompile && \
-      rm -rf /boomtown-backend/tmp/cache/assets/
-
-FROM ruby:2.7.2-slim
-WORKDIR /myapp
-COPY --from=builder /myapp /myapp
-# Add a script to be executed every time the container starts.
-COPY entrypoint.sh /usr/bin/
-RUN chmod +x /usr/bin/entrypoint.sh
-ENTRYPOINT ["entrypoint.sh"]
+RUN chmod +x /myapp/entrypoint.sh
+ENTRYPOINT ["/myapp/entrypoint.sh"]
 EXPOSE 3000
 
-# Start the main process.
 CMD bin/rails server -b 0.0.0.0 -p 3000
