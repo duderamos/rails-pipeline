@@ -1,5 +1,5 @@
 class HomeController < ApplicationController
   def index
-    render plain: 'Foo Bar'
+    render plain: Version.all.pluck(:version)
   end
 end
